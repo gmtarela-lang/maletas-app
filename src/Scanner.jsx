@@ -1,64 +1,72 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 
 export default function Scanner({ onScan, onClose }) {
+  const scannerRef = useRef(null);
+  const [started, setStarted] = useState(false);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    let scanner;
+  const startScanner = async () => {
+    try {
+      setError(null);
 
-    const startCamera = async () => {
-      try {
-        // 🔥 esperar render real del DOM (MUY IMPORTANTE EN MÓVIL)
-        await new Promise((r) => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 500));
 
-        scanner = new Html5Qrcode("reader");
+      const scanner = new Html5Qrcode("reader");
+      scannerRef.current = scanner;
 
-        const config = {
+      await scanner.start(
+        { facingMode: "environment" },
+        {
           fps: 10,
           qrbox: { width: 250, height: 250 },
-        };
+        },
+        (decodedText) => {
+          if (navigator.vibrate) navigator.vibrate(100);
 
-        await scanner.start(
-          { facingMode: "environment" },
-          config,
-          (decodedText) => {
-            if (navigator.vibrate) navigator.vibrate(100);
+          scanner.stop().then(() => {
+            onScan(decodedText);
+          });
+        },
+        () => {}
+      );
 
-            scanner.stop().then(() => {
-              onScan(decodedText);
-            });
-          },
-          () => {}
-        );
-      } catch (err) {
-        console.error("Camera error:", err);
-        setError("No se pudo iniciar la cámara");
-      }
-    };
+      setStarted(true);
+    } catch (err) {
+      console.error(err);
+      setError("No se pudo abrir la cámara");
+    }
+  };
 
-    startCamera();
+  const stopScanner = () => {
+    if (scannerRef.current) {
+      scannerRef.current.stop().catch(() => {});
+    }
+  };
 
-    return () => {
-      if (scanner) {
-        scanner.stop().catch(() => {});
-      }
-    };
+  useEffect(() => {
+    return () => stopScanner();
   }, []);
 
   return (
     <div style={styles.container}>
       <div style={styles.topBar}>
-        <button onClick={onClose} style={styles.closeBtn}>
+        <button onClick={() => { stopScanner(); onClose(); }} style={styles.closeBtn}>
           ✕ Cerrar
         </button>
       </div>
 
-      {error ? (
-        <div style={styles.error}>{error}</div>
-      ) : (
-        <div id="reader" style={styles.reader}></div>
+      {!started && !error && (
+        <div style={styles.center}>
+          <button onClick={startScanner} style={styles.startBtn}>
+            📷 Iniciar cámara
+          </button>
+        </div>
       )}
+
+      {error && <div style={styles.error}>{error}</div>}
+
+      <div id="reader" style={styles.reader}></div>
     </div>
   );
 }
@@ -79,6 +87,16 @@ const styles = {
   closeBtn: {
     fontSize: "18px",
     padding: "8px 12px",
+  },
+  center: {
+    position: "absolute",
+    top: "40%",
+    width: "100%",
+    textAlign: "center",
+  },
+  startBtn: {
+    fontSize: "20px",
+    padding: "15px 25px",
   },
   reader: {
     flex: 1,
