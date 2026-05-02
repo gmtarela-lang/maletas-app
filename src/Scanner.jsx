@@ -1,72 +1,69 @@
-import { useEffect, useRef, useState } from "react";
-import { Html5Qrcode } from "html5-qrcode";
+import { useRef, useState } from "react";
 
 export default function Scanner({ onScan, onClose }) {
-  const scannerRef = useRef(null);
-  const [started, setStarted] = useState(false);
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
   const [error, setError] = useState(null);
 
-  const startScanner = async () => {
+  const startCamera = async () => {
     try {
       setError(null);
 
-      await new Promise((r) => setTimeout(r, 500));
-
-      const scanner = new Html5Qrcode("reader");
-      scannerRef.current = scanner;
-
-      await scanner.start(
-        { facingMode: "environment" },
-        {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment",
         },
-        (decodedText) => {
-          if (navigator.vibrate) navigator.vibrate(100);
+      });
 
-          scanner.stop().then(() => {
-            onScan(decodedText);
-          });
-        },
-        () => {}
-      );
+      streamRef.current = stream;
 
-      setStarted(true);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      // 🔥 SIMULACIÓN QR (para validar cámara primero)
+      // luego metemos decoder real
+      console.log("Cámara iniciada OK");
     } catch (err) {
       console.error(err);
       setError("No se pudo abrir la cámara");
     }
   };
 
-  const stopScanner = () => {
-    if (scannerRef.current) {
-      scannerRef.current.stop().catch(() => {});
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
     }
   };
 
-  useEffect(() => {
-    return () => stopScanner();
-  }, []);
+  const handleClose = () => {
+    stopCamera();
+    onClose();
+  };
 
   return (
     <div style={styles.container}>
       <div style={styles.topBar}>
-        <button onClick={() => { stopScanner(); onClose(); }} style={styles.closeBtn}>
+        <button onClick={handleClose} style={styles.closeBtn}>
           ✕ Cerrar
         </button>
       </div>
 
-      {!started && !error && (
-        <div style={styles.center}>
-          <button onClick={startScanner} style={styles.startBtn}>
-            📷 Iniciar cámara
-          </button>
-        </div>
+      {!error && (
+        <button onClick={startCamera} style={styles.startBtn}>
+          📷 Abrir cámara
+        </button>
       )}
 
       {error && <div style={styles.error}>{error}</div>}
 
-      <div id="reader" style={styles.reader}></div>
+      <video
+        ref={videoRef}
+        style={styles.video}
+        playsInline
+        muted
+      />
     </div>
   );
 }
@@ -79,8 +76,10 @@ const styles = {
     zIndex: 9999,
     display: "flex",
     flexDirection: "column",
+    alignItems: "center",
   },
   topBar: {
+    width: "100%",
     padding: "10px",
     textAlign: "right",
   },
@@ -88,19 +87,14 @@ const styles = {
     fontSize: "18px",
     padding: "8px 12px",
   },
-  center: {
-    position: "absolute",
-    top: "40%",
-    width: "100%",
-    textAlign: "center",
-  },
   startBtn: {
-    fontSize: "20px",
-    padding: "15px 25px",
+    marginTop: "20px",
+    fontSize: "18px",
+    padding: "12px 20px",
   },
-  reader: {
-    flex: 1,
+  video: {
     width: "100%",
+    flex: 1,
   },
   error: {
     color: "white",
