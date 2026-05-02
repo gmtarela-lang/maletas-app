@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import jsQR from "jsqr";
 
 export default function Scanner({ onScan, onClose }) {
@@ -6,12 +6,27 @@ export default function Scanner({ onScan, onClose }) {
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const [error, setError] = useState(null);
-  const [running, setRunning] = useState(false);
+
+  const beep = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.type = "sine";
+      osc.frequency.value = 800;
+      gain.gain.value = 0.1;
+
+      osc.start();
+      osc.stop(ctx.currentTime + 0.1);
+    } catch (e) {}
+  };
 
   const startCamera = async () => {
     try {
-      setError(null);
-
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" },
       });
@@ -21,8 +36,7 @@ export default function Scanner({ onScan, onClose }) {
       videoRef.current.srcObject = stream;
       await videoRef.current.play();
 
-      setRunning(true);
-      scanLoop();
+      scan();
     } catch (err) {
       console.error(err);
       setError("No se pudo abrir la cámara");
@@ -33,66 +47,62 @@ export default function Scanner({ onScan, onClose }) {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
     }
-    setRunning(false);
   };
 
-  const scanLoop = () => {
-    if (!videoRef.current || !canvasRef.current) return;
-
+  const scan = () => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
-    const tick = () => {
-      if (!running) return;
+    const loop = () => {
+      if (!videoRef.current) return;
 
       if (videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
         canvas.width = videoRef.current.videoWidth;
         canvas.height = videoRef.current.videoHeight;
 
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(videoRef.current, 0, 0);
 
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        );
 
         const code = jsQR(imageData.data, canvas.width, canvas.height);
 
         if (code) {
-          if (navigator.vibrate) navigator.vibrate(100);
-
+          beep();
           stopCamera();
           onScan(code.data);
           return;
         }
       }
 
-      requestAnimationFrame(tick);
+      requestAnimationFrame(loop);
     };
 
-    tick();
+    loop();
   };
 
-  const handleClose = () => {
-    stopCamera();
-    onClose();
-  };
+  // 🔥 AUTO-START (WHATSAPP STYLE)
+  useEffect(() => {
+    startCamera();
+
+    return () => stopCamera();
+  }, []);
 
   return (
     <div style={styles.container}>
       <div style={styles.topBar}>
-        <button onClick={handleClose} style={styles.closeBtn}>
+        <button onClick={() => { stopCamera(); onClose(); }}>
           ✕
         </button>
       </div>
 
-      {!running && (
-        <button onClick={startCamera} style={styles.btn}>
-          📷 Abrir cámara
-        </button>
-      )}
-
       {error && <div style={styles.error}>{error}</div>}
 
       <video ref={videoRef} style={styles.video} playsInline muted />
-
       <canvas ref={canvasRef} style={{ display: "none" }} />
     </div>
   );
@@ -102,29 +112,17 @@ const styles = {
   container: {
     position: "fixed",
     inset: 0,
-    backgroundColor: "black",
-    zIndex: 9999,
+    background: "black",
     display: "flex",
     flexDirection: "column",
-    alignItems: "center",
   },
   topBar: {
-    width: "100%",
     textAlign: "right",
     padding: 10,
   },
-  closeBtn: {
-    fontSize: 20,
-    padding: 10,
-  },
-  btn: {
-    marginTop: 20,
-    fontSize: 18,
-    padding: "10px 20px",
-  },
   video: {
-    width: "100%",
     flex: 1,
+    width: "100%",
   },
   error: {
     color: "red",
