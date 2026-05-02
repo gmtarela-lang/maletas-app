@@ -1,30 +1,28 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
+import jsQR from "jsqr";
 
 export default function Scanner({ onScan, onClose }) {
   const videoRef = useRef(null);
+  const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const [error, setError] = useState(null);
+  const [running, setRunning] = useState(false);
 
   const startCamera = async () => {
     try {
       setError(null);
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "environment",
-        },
+        video: { facingMode: "environment" },
       });
 
       streamRef.current = stream;
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
+      videoRef.current.srcObject = stream;
+      await videoRef.current.play();
 
-      // 🔥 SIMULACIÓN QR (para validar cámara primero)
-      // luego metemos decoder real
-      console.log("Cámara iniciada OK");
+      setRunning(true);
+      scanLoop();
     } catch (err) {
       console.error(err);
       setError("No se pudo abrir la cámara");
@@ -35,6 +33,41 @@ export default function Scanner({ onScan, onClose }) {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
     }
+    setRunning(false);
+  };
+
+  const scanLoop = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+
+    const tick = () => {
+      if (!running) return;
+
+      if (videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
+        canvas.width = videoRef.current.videoWidth;
+        canvas.height = videoRef.current.videoHeight;
+
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+        const code = jsQR(imageData.data, canvas.width, canvas.height);
+
+        if (code) {
+          if (navigator.vibrate) navigator.vibrate(100);
+
+          stopCamera();
+          onScan(code.data);
+          return;
+        }
+      }
+
+      requestAnimationFrame(tick);
+    };
+
+    tick();
   };
 
   const handleClose = () => {
@@ -46,24 +79,21 @@ export default function Scanner({ onScan, onClose }) {
     <div style={styles.container}>
       <div style={styles.topBar}>
         <button onClick={handleClose} style={styles.closeBtn}>
-          ✕ Cerrar
+          ✕
         </button>
       </div>
 
-      {!error && (
-        <button onClick={startCamera} style={styles.startBtn}>
+      {!running && (
+        <button onClick={startCamera} style={styles.btn}>
           📷 Abrir cámara
         </button>
       )}
 
       {error && <div style={styles.error}>{error}</div>}
 
-      <video
-        ref={videoRef}
-        style={styles.video}
-        playsInline
-        muted
-      />
+      <video ref={videoRef} style={styles.video} playsInline muted />
+
+      <canvas ref={canvasRef} style={{ display: "none" }} />
     </div>
   );
 }
@@ -80,24 +110,24 @@ const styles = {
   },
   topBar: {
     width: "100%",
-    padding: "10px",
     textAlign: "right",
+    padding: 10,
   },
   closeBtn: {
-    fontSize: "18px",
-    padding: "8px 12px",
+    fontSize: 20,
+    padding: 10,
   },
-  startBtn: {
-    marginTop: "20px",
-    fontSize: "18px",
-    padding: "12px 20px",
+  btn: {
+    marginTop: 20,
+    fontSize: 18,
+    padding: "10px 20px",
   },
   video: {
     width: "100%",
     flex: 1,
   },
   error: {
-    color: "white",
-    padding: "20px",
+    color: "red",
+    padding: 10,
   },
 };
