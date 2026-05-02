@@ -3,18 +3,21 @@ import { Html5Qrcode } from "html5-qrcode";
 
 export default function Scanner({ onScan, onClose }) {
   useEffect(() => {
-    const html5QrCode = new Html5Qrcode("reader");
+    let html5QrCode;
 
-    const config = {
-      fps: 10,
-      qrbox: { width: 250, height: 250 },
-    };
-
-    const startScanner = async () => {
+    const start = async () => {
       try {
+        // pequeño delay para asegurar DOM listo
+        await new Promise((r) => setTimeout(r, 300));
+
+        html5QrCode = new Html5Qrcode("reader");
+
         await html5QrCode.start(
-          { facingMode: "environment" }, // 🔥 clave para móvil
-          config,
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+          },
           (decodedText) => {
             console.log("QR detectado:", decodedText);
 
@@ -27,14 +30,16 @@ export default function Scanner({ onScan, onClose }) {
           () => {}
         );
       } catch (err) {
-        console.error("Error cámara:", err);
+        console.error("Camera error:", err);
       }
     };
 
-    startScanner();
+    start();
 
     return () => {
-      html5QrCode.stop().catch(() => {});
+      if (html5QrCode) {
+        html5QrCode.stop().catch(() => {});
+      }
     };
   }, []);
 
