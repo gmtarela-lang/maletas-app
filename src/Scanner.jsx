@@ -7,6 +7,11 @@ export default function Scanner({ onScan, onClose }) {
   const streamRef = useRef(null);
   const [error, setError] = useState(null);
 
+  // 🔥 DEBUG: confirmar que el scanner realmente se abre
+  useEffect(() => {
+    console.log("🔥 SCANNER ABIERTO");
+  }, []);
+
   const beep = () => {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -21,7 +26,7 @@ export default function Scanner({ onScan, onClose }) {
       gain.gain.value = 0.1;
 
       osc.start();
-      osc.stop(ctx.currentTime + 0.12);
+      osc.stop(ctx.currentTime + 0.1);
     } catch (e) {}
   };
 
@@ -100,7 +105,7 @@ export default function Scanner({ onScan, onClose }) {
       <div style={styles.cameraWrap}>
         <video ref={videoRef} style={styles.video} playsInline muted />
 
-        {/* OVERLAY WHATSAPP STYLE */}
+        {/* overlay tipo WhatsApp */}
         <div style={styles.overlay}>
           <div style={styles.scanBox}>
             <div style={styles.scanLine}></div>
