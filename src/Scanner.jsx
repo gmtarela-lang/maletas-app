@@ -21,7 +21,7 @@ export default function Scanner({ onScan, onClose }) {
       gain.gain.value = 0.1;
 
       osc.start();
-      osc.stop(ctx.currentTime + 0.1);
+      osc.stop(ctx.currentTime + 0.12);
     } catch (e) {}
   };
 
@@ -33,8 +33,10 @@ export default function Scanner({ onScan, onClose }) {
 
       streamRef.current = stream;
 
-      videoRef.current.srcObject = stream;
-      await videoRef.current.play();
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
 
       scan();
     } catch (err) {
@@ -62,12 +64,7 @@ export default function Scanner({ onScan, onClose }) {
 
         ctx.drawImage(videoRef.current, 0, 0);
 
-        const imageData = ctx.getImageData(
-          0,
-          0,
-          canvas.width,
-          canvas.height
-        );
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
         const code = jsQR(imageData.data, canvas.width, canvas.height);
 
@@ -85,24 +82,32 @@ export default function Scanner({ onScan, onClose }) {
     loop();
   };
 
-  // 🔥 AUTO-START (WHATSAPP STYLE)
   useEffect(() => {
     startCamera();
-
     return () => stopCamera();
   }, []);
 
   return (
     <div style={styles.container}>
       <div style={styles.topBar}>
-        <button onClick={() => { stopCamera(); onClose(); }}>
+        <button style={styles.closeBtn} onClick={() => { stopCamera(); onClose(); }}>
           ✕
         </button>
       </div>
 
       {error && <div style={styles.error}>{error}</div>}
 
-      <video ref={videoRef} style={styles.video} playsInline muted />
+      <div style={styles.cameraWrap}>
+        <video ref={videoRef} style={styles.video} playsInline muted />
+
+        {/* OVERLAY WHATSAPP STYLE */}
+        <div style={styles.overlay}>
+          <div style={styles.scanBox}>
+            <div style={styles.scanLine}></div>
+          </div>
+        </div>
+      </div>
+
       <canvas ref={canvasRef} style={{ display: "none" }} />
     </div>
   );
@@ -112,18 +117,64 @@ const styles = {
   container: {
     position: "fixed",
     inset: 0,
-    background: "black",
+    backgroundColor: "black",
     display: "flex",
     flexDirection: "column",
   },
+
   topBar: {
+    width: "100%",
     textAlign: "right",
     padding: 10,
   },
-  video: {
+
+  closeBtn: {
+    fontSize: 20,
+    padding: 10,
+    color: "white",
+    background: "transparent",
+    border: "none",
+  },
+
+  cameraWrap: {
+    position: "relative",
     flex: 1,
     width: "100%",
+    overflow: "hidden",
   },
+
+  video: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+  },
+
+  overlay: {
+    position: "absolute",
+    inset: 0,
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  scanBox: {
+    width: "75%",
+    height: "40%",
+    border: "2px solid rgba(0,255,0,0.7)",
+    borderRadius: 12,
+    position: "relative",
+    overflow: "hidden",
+  },
+
+  scanLine: {
+    position: "absolute",
+    width: "100%",
+    height: 3,
+    background: "lime",
+    top: 0,
+    animation: "scanMove 2s infinite linear",
+  },
+
   error: {
     color: "red",
     padding: 10,
