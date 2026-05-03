@@ -1,77 +1,95 @@
-console.log("🔥 APP MODIFICADO");
 import { useState } from "react";
 import Scanner from "./Scanner";
+import "./App.css";
+
+const SHEET_API =
+  "https://script.google.com/macros/s/AKfycbyQdIwNirhrRYXR1VN_K0Zy2LtWHHxNJTaMbNgWKEQzT3IIBxTm8NX82uh4lXNPuo2K/exec";
 
 export default function App() {
-  const [scannerType, setScannerType] = useState(null);
-
   const [iata, setIata] = useState("");
   const [qr, setQr] = useState("");
+  const [scannerType, setScannerType] = useState(null);
   const [status, setStatus] = useState("");
 
-  const handleScan = (data) => {
+  const sendToSheet = async (data) => {
+    try {
+      await fetch(SHEET_API, {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    } catch (err) {
+      console.error("Error enviando a Sheet", err);
+    }
+  };
+
+  const handleScan = (value) => {
     if (scannerType === "IATA") {
-      setIata(data);
+      setIata(value);
+    } else {
+      setQr(value);
     }
-
-    if (scannerType === "QR") {
-      setQr(data);
-    }
-
     setScannerType(null);
   };
 
-  const handleLink = () => {
+  const handleLink = async () => {
     if (!iata || !qr) {
       setStatus("❌ Falta IATA o QR");
       return;
     }
 
-    setStatus(`✔ Maleta vinculada\n📍 IATA: ${iata}\n📦 QR: ${qr}`);
+    let lat = "";
+    let lng = "";
+
+    try {
+      const pos = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject);
+      });
+
+      lat = pos.coords.latitude;
+      lng = pos.coords.longitude;
+    } catch (e) {
+      console.log("GPS no disponible");
+    }
+
+    const payload = {
+      iata,
+      qr,
+      estado: "Vinculado",
+      lat,
+      lng,
+    };
+
+    await sendToSheet(payload);
+
+    setStatus(`✔ Enviado a Sheets\nIATA: ${iata}\nQR: ${qr}`);
   };
 
   return (
-    <div style={styles.container}>
+    <div className="app">
       <h2>Operador Logístico</h2>
 
-      {/* IATA */}
-      <div style={styles.box}>
+      <div className="card">
         <h3>IATA (cliente)</h3>
-        <input
-          value={iata}
-          onChange={(e) => setIata(e.target.value)}
-          placeholder="Introduce o escanea IATA"
-          style={styles.input}
-        />
+        <input value={iata} readOnly placeholder="Escanear IATA" />
         <button onClick={() => setScannerType("IATA")}>
           📷 Escanear IATA
         </button>
       </div>
 
-      {/* QR */}
-      <div style={styles.box}>
-        <h3>QR Maleta (interno)</h3>
-        <input
-          value={qr}
-          onChange={(e) => setQr(e.target.value)}
-          placeholder="Escanea QR de maleta"
-          style={styles.input}
-        />
+      <div className="card">
+        <h3>QR Maleta</h3>
+        <input value={qr} readOnly placeholder="Escanear QR" />
         <button onClick={() => setScannerType("QR")}>
           📷 Escanear QR
         </button>
       </div>
 
-      {/* LINK */}
-      <div style={styles.box}>
-        <button onClick={handleLink} style={styles.linkBtn}>
-          🔗 Vincular maleta
-        </button>
+      <button className="link-btn" onClick={handleLink}>
+        🔗 Vincular maleta
+      </button>
 
-        <pre style={styles.status}>{status}</pre>
-      </div>
+      {status && <pre className="status">{status}</pre>}
 
-      {/* SCANNER MODAL */}
       {scannerType && (
         <Scanner
           onScan={handleScan}
@@ -81,36 +99,3 @@ export default function App() {
     </div>
   );
 }
-
-const styles = {
-  container: {
-    padding: 20,
-    fontFamily: "system-ui",
-  },
-
-  box: {
-    border: "1px solid #ccc",
-    padding: 15,
-    marginBottom: 15,
-    borderRadius: 8,
-  },
-
-  input: {
-    width: "100%",
-    padding: 10,
-    marginBottom: 10,
-  },
-
-  linkBtn: {
-    width: "100%",
-    padding: 15,
-    fontSize: 16,
-    backgroundColor: "black",
-    color: "white",
-  },
-
-  status: {
-    marginTop: 10,
-    whiteSpace: "pre-line",
-  },
-};
