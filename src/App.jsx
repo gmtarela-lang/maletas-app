@@ -11,14 +11,20 @@ export default function App() {
   const [scannerType, setScannerType] = useState(null);
   const [status, setStatus] = useState("");
 
+  // ✅ ENVÍO COMPATIBLE CON APPS SCRIPT (FORM DATA)
   const sendToSheet = async (data) => {
     try {
+      const formData = new URLSearchParams();
+
+      formData.append("iata", data.iata);
+      formData.append("qr", data.qr);
+      formData.append("estado", data.estado);
+      formData.append("lat", data.lat);
+      formData.append("lng", data.lng);
+
       await fetch(SHEET_API, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
+        body: formData,
       });
     } catch (err) {
       console.error("Error enviando a Sheet", err);
